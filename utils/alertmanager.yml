@@ -1,0 +1,17 @@
+global:
+  resolve_timeout: 1m
+  slack_api_url: ''
+route:
+  receiver: 'prometheus_alert_manager'
+receivers:
+- name: 'prometheus_alert_manager'
+  webhook_configs:
+  - url: 'http://auctopusbackend:8000/api/alertManager/alert_reciever/'
+    send_resolved: false
+    http_config:
+      basic_auth:
+        username: 'admin'
+        password: 'admin@123'
+  slack_configs:
+  - channel: '#alert-manager'
+    send_resolved: false

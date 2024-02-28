@@ -1,0 +1,140 @@
+version: "3.8"
+
+networks:
+  auctopus_network:
+    name: auctopus_network
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.19.0.0/16"
+          gateway: "172.19.0.1"
+          
+services:
+  db:
+    image: postgres:16
+    container_name: auctopusdatabase
+    volumes:
+      - auctopus_data:/var/lib/postgresql/data/
+    env_file: ./env/db.env
+    restart: always
+    networks:
+      - auctopus_network
+
+  redis:
+    image: redis:latest
+    container_name: auctopus_redis
+    ports:
+      - "6379:6379"
+    restart: always
+    networks:
+      - auctopus_network
+
+  frontend:
+    image: auctopustechnologies/auctopus_frontend:latest
+    container_name: auctopusfrontend
+    ports:
+      - "80:80"
+    env_file: ./env/frontend.env
+    restart: always
+    networks:
+      - auctopus_network
+
+  prometheus:
+    image: prom/prometheus
+    container_name: auctopusprometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--web.enable-lifecycle"
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - auctopus_network
+
+  snmp-exporter:
+    image: prom/snmp-exporter
+    container_name: auctopussnmpexporter
+    ports:
+      - "9116:9116"
+    depends_on:
+      - prometheus
+    restart: always
+    networks:
+      - auctopus_network
+  
+  prometheus_alertmanager:
+    image: prom/alertmanager
+    container_name: auctopusprometheusalertmanager
+    ports:
+      - "9093:9093"
+    command:
+      - "--config.file=/alertmanager.yml"
+    restart: always
+    networks:
+      - auctopus_network
+    volumes:
+      - ./utils/alertmanager.yml:/alertmanager.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: auctopusgrafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - auctopus_network
+
+  backend:
+    image: auctopustechnologies/auctopus_backend_dev:latest
+    container_name: auctopusbackend
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8000:8000"
+    env_file: ./env/backend.env
+    depends_on:
+      - db
+      - redis
+    restart: always
+    networks:
+      - auctopus_network
+
+  celery_worker:
+    image: auctopustechnologies/auctopus_backend_dev:latest
+    container_name: auctopusceleryworker
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file: ./env/backend.env
+    depends_on:
+      - backend
+      - db
+      - redis
+    restart: always
+    networks:
+      - auctopus_network
+    entrypoint: /celery_entrypoint.sh
+  
+  celery_beat:
+    image: auctopustechnologies/auctopus_backend_dev:latest
+    container_name: auctopuscelerybeat
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file: ./env/backend.env
+    depends_on:
+      - backend
+      - db
+      - redis
+    restart: always
+    networks:
+      - auctopus_network
+    entrypoint: /celery_beat_entrypoint.sh
+      
+volumes:
+  auctopus_data:
+  grafana_data:
