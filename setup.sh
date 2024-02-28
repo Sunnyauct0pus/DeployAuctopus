@@ -22,7 +22,6 @@ sudo docker login
 
 # # Step 3: Run Docker
 echo "Step 3: Running Docker Compose"
-cd automation
 sudo docker-compose up -d
 
 # # Step 4: Logout from Docker
